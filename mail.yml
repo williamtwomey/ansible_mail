@@ -102,6 +102,14 @@
       src: mail/main.cf.jinja2
       dest: /etc/postfix/main.cf
 
+  - name: postfix sasl_passwd
+    copy:
+      src: mail/sasl_passwd
+      dest: /etc/postfix/sasl_passwd
+
+  - name: postfix run postmap
+    command: postmap /etc/postfix/sasl_passwd
+
   - name: get solr
     get_url: url={{ solr_url }} dest=/tmp
 
