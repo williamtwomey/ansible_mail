@@ -18,6 +18,12 @@
       - imaps
       - smtp
       - smtps
+    mail_services:
+      - postfix
+      - dovecot
+      - opendkim
+      - httpd
+      - spamassassin
     mail_packages:
       - dovecot
       - httpd
@@ -65,7 +71,7 @@
 
   - name: httpd config
     template:
-      src: mail/httpd.jina2
+      src: httpd.jina2
       dest: /etc/httpd/conf.d/mail.conf
 
   - name: pull down roundcubemail
@@ -80,6 +86,11 @@
       dest: /var/www/html/roundcubemail
       state: link
 
+  - name: deploy roundcubemail config
+    copy:
+      src: config.inc.php
+      dest: /var/www/html/roundcubemail/config/config.inc.php
+
 # might not need this anymore
 #  - name: dovecot-lda setuid
 #    file:
@@ -88,17 +99,17 @@
 
   - name: dovecot 10-mail.conf
     copy:
-      src: mail/10-mail.conf
+      src: 10-mail.conf
       dest: /etc/dovecot/conf.d/10-mail.conf
 
   - name: dovecot 90-plugin.conf
     copy:
-      src: mail/90-plugin.conf
+      src: 90-plugin.conf
       dest: /etc/dovecot/conf.d/90-plugin.conf
 
   - name: opendkim.conf
     copy:
-      src: mail/opendkim.conf
+      src: opendkim.conf
       dest: /etc/opendkim.conf
 
   - name: opendkim key directories
@@ -109,39 +120,39 @@
 
   - name: opendkim TXT
     copy:
-      src: "mail/opendkim/{{ item }}.txt"
+      src: "opendkim/{{ item }}.txt"
       dest: "/etc/opendkim/keys/{{ item }}/default.txt"
     loop: "{{ mail_domains }}"
 
   - name: opendkim keys
     copy:
-      src: "mail/opendkim/{{ item }}.private"
+      src: "opendkim/{{ item }}.private"
       dest: "/etc/opendkim/keys/{{ item }}/default.private"
     loop: "{{ mail_domains }}"
 
   - name: opendkim KeyTable
     template:
-      src: "mail/KeyTable.jinja2"
+      src: "KeyTable.jinja2"
       dest: /etc/opendkim/KeyTable
 
   - name: opendkim SigningTable
     template:
-      src: mail/SigningTable.jinja2
+      src: SigningTable.jinja2
       dest: /etc/opendkim/SigningTable
 
   - name: /etc/procmailrc
     copy:
-      src: mail/procmailrc
+      src: procmailrc
       dest: /etc/procmailrc
 
   - name: postfix main.cf
     template:
-      src: mail/main.cf.jinja2
+      src: main.cf.jinja2
       dest: /etc/postfix/main.cf
 
   - name: postfix auth maps
     copy:
-      src: "mail/{{ item }}"
+      src: "{{ item }}"
       dest: "/etc/postfix/{{ item }}"
     loop: "{{ postfix_maps }}"
 
@@ -172,13 +183,13 @@
 
   - name: solr - copy managed-schema
     copy:
-      src: mail/solr-schema.xml
+      src: solr-schema.xml
       dest: /var/solr/data/dovecot/conf/managed-schema
       owner: solr
 
   - name: solr - copy solrconfig.xml
     copy:
-      src: mail/solr-config.xml
+      src: solr-config.xml
       dest: /var/solr/data/dovecot/conf/solrconfig.xml
       owner: solr
 
@@ -192,11 +203,7 @@
       name: "{{ item }}"
       state: restarted
       enabled: true
-    with_items:
-      - postfix
-      - dovecot
-      - opendkim
-      - httpd
+    loop: "{{ mail_services }}"
 
   - name: restart solr like an animal
     command: /etc/init.d/solr restart

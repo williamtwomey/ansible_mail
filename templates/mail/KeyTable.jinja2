@@ -1,3 +1,0 @@
-{% for domain in mail_domains %}
-default._dkim.{{ domain }} {{ domain }}:default:/etc/opendkim/keys/{{ domain }}/default.private
-{% endfor %}
