@@ -1,0 +1,23 @@
+LOGFILE=$HOME/Maildir/procmailrc.log
+MAILDIR=$HOME/Maildir
+DEFAULT=$HOME/Maildir/cur
+DROPPRIVS=YES
+
+:0fw
+| /usr/bin/spamc
+
+:0:
+* ^X-Spam-Status: Yes
+$HOME/Maildir/.Spam/cur
+
+:0
+* ^^rom[ ]
+{
+  LOG="*** Dropped F off From_ header! Fixing up. "
+
+  :0 fhw
+  | sed -e '1s/^/F/'
+}
+
+
+

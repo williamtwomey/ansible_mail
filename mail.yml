@@ -53,6 +53,16 @@
       state: present
     loop: "{{ mail_users }}"
 
+  - name: remove stock letsencrypt dir
+    file:
+      path: /etc/letsencrypt
+      state: absent
+
+  - name: copy letsencrypt
+    synchronize:
+      src: /etc/letsencrypt
+      dest: /etc
+
   - name: httpd config
     template:
       src: mail/httpd.jina2
@@ -69,16 +79,6 @@
       src: "/var/www/html/roundcubemail-{{ roundcube_version }}"
       dest: /var/www/html/roundcubemail
       state: link
-
-  - name: remove stock letsencrypt dir
-    file:
-      path: /etc/letsencrypt
-      state: absent
-
-  - name: copy letsencrypt
-    synchronize:
-      src: /etc/letsencrypt
-      dest: /etc
 
 # might not need this anymore
 #  - name: dovecot-lda setuid

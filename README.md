@@ -1,10 +1,14 @@
 # ansible_mail
 
-Populate the following secrets:
+Populate the following sensitive files:
 
-* files/mail/opendkim -> with your opendkim .txt and .private files
-* files/mail/sasl_passwd -> relay creds
+* opendkim txt/private files in files/mail/opendkim
+* postfix maps in files/mail/sasl_passwd,relayhost_map,access,sender_access
 
-Define mail_users, mail_domains and http_domains in host/group vars
+Define the following required vars:
+* mail_users: []
+* mail_domains: []
+* http_domains: []
+* mail_default_domain: example.com
 
-This assumes where you're running ansible from is running certbot and has /etc/letsencrypt available.
+This also assumes where you're running ansible from is running certbot and has /etc/letsencrypt available.
