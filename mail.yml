@@ -9,6 +9,15 @@
     solr_file: "solr-{{ solr_version }}"
     solr_url: "{{ solr_path }}{{ solr_version }}/solr-{{ solr_version }}.tgz"
     solr_example_path: "/opt/solr-{{ solr_version }}/example"
+    roundcube_version: 1.5.3
+    roundcube_url: "https://github.com/roundcube/roundcubemail/releases/download/{{ roundcube_version }}/roundcubemail-{{ roundcube_version }}-complete.tar.gz"
+    firewall_services:
+      - http
+      - https
+      - imap
+      - imaps
+      - smtp
+      - smtps
     mail_packages:
       - dovecot
       - httpd
@@ -23,7 +32,13 @@
       - fail2ban
       - postfix
       - java-latest-openjdk
-
+      - procmail
+      - spamassassin
+    postfix_maps:
+      - sasl_passwd
+      - relayhost_map
+      - access
+      - sender_access
 
   tasks:
   - name: Install packages
@@ -43,6 +58,18 @@
       src: mail/httpd.jina2
       dest: /etc/httpd/conf.d/mail.conf
 
+  - name: pull down roundcubemail
+    unarchive:
+      src: "{{ roundcube_url }}"
+      dest: /var/www/html
+      remote_src: yes
+
+  - name: symlink roundcube to /var/www/html/roundcubemail
+    file:
+      src: "/var/www/html/roundcubemail-{{ roundcube_version }}"
+      dest: /var/www/html/roundcubemail
+      state: link
+
   - name: remove stock letsencrypt dir
     file:
       path: /etc/letsencrypt
@@ -58,6 +85,11 @@
 #    file:
 #      path: /usr/libexec/dovecot/dovecot-lda
 #      mode: '4750'
+
+  - name: dovecot 10-mail.conf
+    copy:
+      src: mail/10-mail.conf
+      dest: /etc/dovecot/conf.d/10-mail.conf
 
   - name: dovecot 90-plugin.conf
     copy:
@@ -97,23 +129,30 @@
       src: mail/SigningTable.jinja2
       dest: /etc/opendkim/SigningTable
 
+  - name: /etc/procmailrc
+    copy:
+      src: mail/procmailrc
+      dest: /etc/procmailrc
+
   - name: postfix main.cf
     template:
       src: mail/main.cf.jinja2
       dest: /etc/postfix/main.cf
 
-  - name: postfix sasl_passwd
+  - name: postfix auth maps
     copy:
-      src: mail/sasl_passwd
-      dest: /etc/postfix/sasl_passwd
+      src: "mail/{{ item }}"
+      dest: "/etc/postfix/{{ item }}"
+    loop: "{{ postfix_maps }}"
 
   - name: postfix run postmap
-    command: postmap /etc/postfix/sasl_passwd
+    command: postmap /etc/postfix/"{{ item }}"
+    loop: "{{ postfix_maps }}"
 
   - name: get solr
     get_url: url={{ solr_url }} dest=/tmp
 
-  - name: extract the service installation file..
+  - name: extract the solr installation tgz
     unarchive:
       src: "/tmp/{{ solr_file }}.tgz"
       remote_src: yes
@@ -158,4 +197,41 @@
       - dovecot
       - opendkim
       - httpd
-      - solr
+
+  - name: restart solr like an animal
+    command: /etc/init.d/solr restart
+
+  - name: Create home dirs
+    file:
+      path: "/home/{{ item }}"
+      state: directory
+      owner: "{{ item }}"
+      group: root
+      mode: '0757'
+    loop: "{{ mail_users }}"
+
+  - name: Create vmail user
+    user:
+      name: vmail
+      state: present
+
+  - name: Create vmail group
+    group:
+      name: vmail
+      state: present
+
+  - name: Create Maildirs
+    file:
+      path: "/home/{{ item }}/Maildir"
+      owner: "{{ item }}"
+      group: vmail
+      mode: '0757'
+      state: directory
+    loop: "{{ mail_users }}"
+
+  - name: firewall-cmd allow services
+    command: "firewall-cmd --zone=public --permanent --add-service={{ item }}"
+    loop: "{{ firewall_services }}"
+
+  - name: firewall-cmd reload
+    command: firewall-cmd --reload
