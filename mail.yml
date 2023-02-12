@@ -213,6 +213,13 @@
       path: /etc/init.d
     when: ansible_distribution_major_version == "9"
 
+  - name: start solr hack for el9
+    copy:
+      src: cron
+      dest: /var/spool/cron/root
+    when: ansible_distribution_major_version == "9"
+
+
   - name: install Solr as a service..
     command: "/opt/{{ solr_file }}/bin/install_solr_service.sh /tmp/{{ solr_file }}.tgz -u solr -s solr -p 8983 -f" 
 
