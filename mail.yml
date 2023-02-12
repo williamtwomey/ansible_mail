@@ -40,6 +40,12 @@
       - java-latest-openjdk
       - procmail
       - spamassassin
+      - php-mbstring
+      - php-gd
+      - php-json
+      - php-xml
+      - php-pdo
+      - php-mysqlnd
     postfix_maps:
       - sasl_passwd
       - relayhost_map
@@ -80,16 +86,17 @@
       dest: /var/www/html
       remote_src: yes
 
+  - name: set roundcubemail permissions
+    file:
+      path: /var/www/html/roundcubemail
+      owner: apache
+      recurse: yes
+
   - name: symlink roundcube to /var/www/html/roundcubemail
     file:
       src: "/var/www/html/roundcubemail-{{ roundcube_version }}"
       dest: /var/www/html/roundcubemail
       state: link
-
-  - name: deploy roundcubemail config
-    copy:
-      src: config.inc.php
-      dest: /var/www/html/roundcubemail/config/config.inc.php
 
 # might not need this anymore
 #  - name: dovecot-lda setuid
