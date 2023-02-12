@@ -31,6 +31,12 @@
       - opendkim
       - certbot
       - php
+      - php-pecl-zip
+      - php-pecl-imagick
+      - cyrus-sasl-md5
+      - cyrus-sasl-plain
+      - cyrus-sasl-lib
+      - php-intl
       - php-cli
       - borgbackup
       - rsync
@@ -46,6 +52,7 @@
       - php-xml
       - php-pdo
       - php-mysqlnd
+      - tar
     postfix_maps:
       - sasl_passwd
       - relayhost_map
@@ -53,6 +60,15 @@
       - sender_access
 
   tasks:
+
+  - name: install epel-release
+    yum:
+      name: epel-release
+      state: present
+
+  - name: enable powertools repo
+    command: "dnf -y config-manager --set-enabled {{ (ansible_distribution_version is version('8' '=='))|ternary('powertools','crb') }}"
+
   - name: Install packages
     yum:
       name: "{{ mail_packages }}"
@@ -88,8 +104,9 @@
 
   - name: set roundcubemail permissions
     file:
-      path: /var/www/html/roundcubemail
+      path: "/var/www/html/roundcubemail-{{ roundcube_version }}"
       owner: apache
+      state: directory
       recurse: yes
 
   - name: symlink roundcube to /var/www/html/roundcubemail
@@ -157,6 +174,11 @@
       src: main.cf.jinja2
       dest: /etc/postfix/main.cf
 
+  - name: postfix master.cf
+    copy:
+      src: master.cf
+      dest: /etc/postfix/master.cf
+
   - name: postfix auth maps
     copy:
       src: "{{ item }}"
@@ -177,6 +199,20 @@
       dest: /opt
     ignore_errors: true
   
+  - name: set /opt/solr permissions
+    file:
+      state: directory
+      owner: solr
+      recurse: yes
+      path: "/opt/{{ solr_file }}"
+    
+
+  - name: ensure /etc/init.d/ exists on el9
+    file:
+      state: directory
+      path: /etc/init.d
+    when: ansible_distribution_major_version == "9"
+
   - name: install Solr as a service..
     command: "/opt/{{ solr_file }}/bin/install_solr_service.sh /tmp/{{ solr_file }}.tgz -u solr -s solr -p 8983 -f" 
 
