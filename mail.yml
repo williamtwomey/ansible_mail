@@ -1,0 +1,152 @@
+---
+- name: mail server setup
+  hosts: all
+  remote_user: root
+  vars:
+    solr_path: http://archive.apache.org/dist/lucene/solr/
+    solr_version: 8.11.1
+    solr_destination: /opt/solr/server/
+    solr_file: "solr-{{ solr_version }}"
+    solr_url: "{{ solr_path }}{{ solr_version }}/solr-{{ solr_version }}.tgz"
+    solr_example_path: "/opt/solr-{{ solr_version }}/example"
+    mail_packages:
+      - dovecot
+      - httpd
+      - mod_ssl
+      - opendkim
+      - certbot
+      - php
+      - php-cli
+      - borgbackup
+      - rsync
+      - backupninja
+      - fail2ban
+      - postfix
+      - java-latest-openjdk
+
+
+  tasks:
+  - name: Install packages
+    yum:
+      name: "{{ mail_packages }}"
+      state: present
+    ignore_errors: true
+
+  - name: create mail users
+    user:
+      name: "{{ item }}"
+      state: present
+    loop: "{{ mail_users }}"
+
+  - name: httpd config
+    template:
+      src: mail/httpd.jina2
+      dest: /etc/httpd/conf.d/mail.conf
+
+  - name: remove stock letsencrypt dir
+    file:
+      path: /etc/letsencrypt
+      state: absent
+
+  - name: copy letsencrypt
+    synchronize:
+      src: /etc/letsencrypt
+      dest: /etc
+
+# might not need this anymore
+#  - name: dovecot-lda setuid
+#    file:
+#      path: /usr/libexec/dovecot/dovecot-lda
+#      mode: '4750'
+
+  - name: dovecot 90-plugin.conf
+    copy:
+      src: mail/90-plugin.conf
+      dest: /etc/dovecot/conf.d/90-plugin.conf
+
+  - name: opendkim.conf
+    copy:
+      src: mail/opendkim.conf
+      dest: /etc/opendkim.conf
+
+  - name: opendkim key directories
+    file:
+      state: directory
+      path: "/etc/opendkim/keys/{{ item }}"
+    loop: "{{ mail_domains }}"
+
+  - name: opendkim TXT
+    copy:
+      src: "mail/opendkim/{{ item }}.txt"
+      dest: "/etc/opendkim/keys/{{ item }}/default.txt"
+    loop: "{{ mail_domains }}"
+
+  - name: opendkim keys
+    copy:
+      src: "mail/opendkim/{{ item }}.private"
+      dest: "/etc/opendkim/keys/{{ item }}/default.private"
+    loop: "{{ mail_domains }}"
+
+  - name: opendkim KeyTable
+    template:
+      src: "mail/KeyTable.jinja2"
+      dest: /etc/opendkim/KeyTable
+
+  - name: opendkim SigningTable
+    template:
+      src: mail/SigningTable.jinja2
+      dest: /etc/opendkim/SigningTable
+
+  - name: postfix main.cf
+    template:
+      src: mail/main.cf.jinja2
+      dest: /etc/postfix/main.cf
+
+  - name: get solr
+    get_url: url={{ solr_url }} dest=/tmp
+
+  - name: extract the service installation file..
+    unarchive:
+      src: "/tmp/{{ solr_file }}.tgz"
+      remote_src: yes
+      dest: /opt
+    ignore_errors: true
+  
+  - name: install Solr as a service..
+    command: "/opt/{{ solr_file }}/bin/install_solr_service.sh /tmp/{{ solr_file }}.tgz -u solr -s solr -p 8983 -f" 
+
+
+  - name: solr - enable dovecot
+    command: /opt/solr/bin/solr create -c dovecot
+    become: yes
+    become_user: solr
+    args:
+      creates: /var/solr/data/dovecot
+
+  - name: solr - copy managed-schema
+    copy:
+      src: mail/solr-schema.xml
+      dest: /var/solr/data/dovecot/conf/managed-schema
+      owner: solr
+
+  - name: solr - copy solrconfig.xml
+    copy:
+      src: mail/solr-config.xml
+      dest: /var/solr/data/dovecot/conf/solrconfig.xml
+      owner: solr
+
+  - name: solr - ensure schema.xml is absent
+    file:
+      path: /var/solr/data/dovecot/conf/schema.xml
+      state: absent
+
+  - name: restart services
+    systemd:
+      name: "{{ item }}"
+      state: restarted
+      enabled: true
+    with_items:
+      - postfix
+      - dovecot
+      - opendkim
+      - httpd
