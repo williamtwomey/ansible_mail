@@ -10,7 +10,7 @@ This playbook will setup a mail server with:
 
 Generate and put the following sensitive files into place:
 
-* opendkim txt/private files for each domain in /files/openskim/domain.{txt,private}
+* opendkim txt/private files for each domain in /files/opendkim/domain.{txt,private}
 * postfix maps in /files/ - sasl_passwd, relayhost_map, access, sender_access
 
 Define the following required vars:
